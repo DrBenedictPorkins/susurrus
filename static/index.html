@@ -1,0 +1,2738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>susurrus</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      background: #1a1a1a;
+      color: #d4d4d4;
+      font-family: "Consolas", "Menlo", "Monaco", "Courier New", monospace;
+      font-size: 14px;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ── main panel row ─────────────────────────────────────────────────────── */
+    #main-row {
+      flex: 1 1 0;
+      display: flex;
+      min-height: 0;
+      background: #333;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      background: #1a1a1a;
+      overflow: hidden;
+      min-width: 80px;
+    }
+
+    #panel-raw         { flex: 0 0 auto; width: 33%; }
+    #panel-formatted   { flex: 1 1 0; }
+    #panel-suggestions { flex: 1 1 0; }
+    #panel-web         { flex: 1 1 0; }
+
+    /* hidden panel states (toggled by ribbon buttons) */
+    #panel-raw.hidden,
+    #panel-web.hidden,
+    #div-raw-fmt.hidden,
+    #div-suggestions-web.hidden {
+      display: none;
+    }
+
+    .divider {
+      width: 4px;
+      background: #2a2a2a;
+      cursor: col-resize;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .divider:hover, .divider.dragging { background: #555; }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: #222;
+      border-bottom: 1px solid #333;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #888;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .panel-header .label { flex: 1; }
+
+    #profile-name {
+      text-transform: lowercase;
+      letter-spacing: 0;
+      color: #6a9;
+      margin-left: 6px;
+      cursor: pointer;
+      font-weight: normal;
+    }
+    #profile-name:hover {
+      color: #8db;
+      text-decoration: underline;
+    }
+
+    .prompt-display {
+      background: #0e0e0e;
+      padding: 12px;
+      margin-top: 6px;
+      border: 1px solid #333;
+      border-radius: 3px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      color: #c8c8c8;
+      max-height: 320px;
+      overflow-y: auto;
+      font-family: inherit;
+      line-height: 1.5;
+    }
+    .prompt-meta {
+      font-size: 10px;
+      color: #666;
+      margin-top: 4px;
+      letter-spacing: 0.04em;
+      font-style: italic;
+    }
+    #prompts-modal .prompt-section + .prompt-section { margin-top: 14px; }
+    .prompt-edit {
+      width: 100%;
+      min-height: 220px;
+      max-height: 50vh;
+      background: #0e0e0e;
+      border: 1px solid #333;
+      border-radius: 3px;
+      padding: 12px;
+      margin-top: 6px;
+      font-family: inherit;
+      font-size: 12px;
+      color: #c8c8c8;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    .prompt-edit:focus {
+      outline: none;
+      border-color: #00b8a0;
+    }
+    .prompt-backstory-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .prompt-backstory-actions .prompt-meta { flex: 1; margin-top: 0; }
+    .prompt-edit-hint {
+      font-size: 9px;
+      color: #00b8a0;
+      letter-spacing: 0.06em;
+      text-transform: none;
+      margin-left: 4px;
+    }
+    .prompt-save-status {
+      font-size: 10px;
+      letter-spacing: 0.06em;
+    }
+    .prompt-save-status.ok   { color: #66ddc8; }
+    .prompt-save-status.err  { color: #ff6a6a; }
+    .prompt-save-status.dirty { color: #cc8800; }
+    #prompts-modal summary {
+      cursor: pointer;
+      color: #aaa;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 0;
+    }
+    #prompts-modal summary:hover { color: #ddd; }
+
+    .panel-footer {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: #1e1e1e;
+      border-top: 1px solid #333;
+    }
+    .panel-footer .ribbon-btn { font-size: 10px; }
+
+    #status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #cc4444;
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    #status-dot.connected { background: #44cc66; }
+
+    #status-text { font-size: 10px; color: #666; }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .panel-body::-webkit-scrollbar { width: 6px; }
+    .panel-body::-webkit-scrollbar-track { background: #1a1a1a; }
+    .panel-body::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+    /* transcript */
+    #raw-content p {
+      margin-bottom: 6px;
+      line-height: 1.6;
+      color: #c8c8c8;
+      opacity: 0;
+      animation: fadein 0.35s ease forwards;
+    }
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* log panel */
+    .log-block {
+      margin-bottom: 12px;
+      border-left: 2px solid #333;
+      padding-left: 10px;
+    }
+    .log-sep {
+      color: #444;
+      font-size: 11px;
+      margin-bottom: 4px;
+      user-select: none;
+    }
+    .log-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 3px;
+      line-height: 1.5;
+    }
+    .log-lbl {
+      flex-shrink: 0;
+      width: 100px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding-top: 1px;
+      text-align: right;
+    }
+    .log-text {
+      flex: 1;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #c8c8c8;
+      font-size: 13px;
+    }
+    .lbl-chunk    { color: #5af; }
+    .lbl-context  { color: #666; }
+    .lbl-raw      { color: #a5f; }
+    .lbl-decision { color: #5f5; }
+    .lbl-fallback { color: #f55; }
+    .action-append        { color: #5af; }
+    .action-new_paragraph { color: #fa5; }
+    .action-split         { color: #f5a; }
+
+
+    /* suggestions panel */
+    .suggestion-item {
+      position: relative;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: #1e1a00;
+      border: 1px solid #3d3200;
+      border-left: 4px solid #bb8800;
+      border-radius: 0 4px 4px 0;
+      font-size: 15px;
+      color: #c8a84a;
+      line-height: 2;
+      word-break: break-word;
+      opacity: 0.45;
+      transition: opacity 0.25s ease, border-left-color 0.25s ease;
+      animation: sugg-fadein 0.35s ease;
+    }
+    .sugg-stopwatch {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 11px;
+      color: #6a5400;
+      letter-spacing: 0.04em;
+      display: none;
+    }
+    .suggestion-item.latest .sugg-stopwatch,
+    .suggestion-item:hover .sugg-stopwatch {
+      display: inline-block;
+    }
+    .suggestion-item.latest .sugg-stopwatch {
+      color: #aa8000;
+    }
+    .suggestion-item.latest {
+      opacity: 1;
+      border-left-color: #e0a830;
+    }
+    .suggestion-item:hover {
+      opacity: 1;
+    }
+    @keyframes sugg-fadein {
+      from { opacity: 0; transform: translateY(4px); }
+    }
+    .suggestion-ts {
+      font-size: 9px;
+      color: #3d3000;
+      margin-bottom: 8px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .sugg-line { display: block; }
+    .sugg-lbl {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: bold;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 2px;
+      margin-right: 8px;
+      vertical-align: middle;
+      position: relative;
+      top: -1px;
+    }
+    .sugg-lbl-harold   { background: #3a2600; color: #ffb830; border: 1px solid #6a4000; }
+    .sugg-lbl-party    { background: #002030; color: #40c0e8; border: 1px solid #004466; }
+    .sugg-lbl-ooc      { background: #1c1c1c; color: #555;    border: 1px solid #2e2e2e; }
+    .sugg-lbl-summary  { background: #2a2000; color: #d4a850; border: 1px solid #5a4400; }
+    .sugg-lbl-question { background: #3a1c00; color: #ff9a50; border: 1px solid #5e3000; }
+    .sugg-lbl-read     { background: #001a26; color: #4cb8c8; border: 1px solid #003a48; }
+    .sugg-lbl-call     { background: #3a1400; color: #ff6a40; border: 1px solid #6c2600; }
+    .sugg-text-harold   { color: #f0cc60; }
+    .sugg-text-party    { color: #90c8e0; }
+    .sugg-text-ooc      { color: #585858; font-style: italic; }
+    .sugg-text-summary  { color: #c8b078; }
+    .sugg-text-question { color: #ff9a5a; }
+    .sugg-text-read     { color: #80c4d0; }
+    .sugg-text-call     { color: #ff8c5a; }
+
+    /* visible break between adjacent label sections (e.g. SUMMARY → QUESTION) */
+    .sugg-line + .sugg-line {
+      margin-top: 14px !important;
+      padding-top: 12px;
+      border-top: 1px dashed #3d2c00;
+    }
+
+    /* advisor (ask) response items — boxed Q&A, distinct from amber AUTO */
+    .ask-item {
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: #1a0030;
+      border: 1px solid #3d2055;
+      border-left: 4px solid #9a5acc;
+      border-radius: 0 4px 4px 0;
+      font-size: 14px;
+      color: #d4b8ee;
+      line-height: 1.85;
+      white-space: pre-wrap;
+      word-break: break-word;
+      opacity: 0;
+      animation: fadein 0.35s ease forwards;
+    }
+    .ask-item-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #7a5a9a;
+    }
+    .ask-item-label {
+      background: #2d1545;
+      color: #d4a0ff;
+      padding: 3px 9px;
+      border-radius: 2px;
+      font-weight: bold;
+      border: 1px solid #6a40aa;
+      letter-spacing: 0.14em;
+    }
+    .ask-item-question {
+      font-size: 12px;
+      color: #a080c0;
+      font-style: italic;
+      margin-bottom: 12px;
+      padding: 6px 10px;
+      background: #100020;
+      border-left: 2px solid #3d2055;
+      white-space: normal;
+      line-height: 1.5;
+    }
+
+    /* Q&A panel — unified threaded conversations (model decides if web search is needed) */
+    .web-thread {
+      margin-bottom: 18px;
+      padding: 12px 14px;
+      background: #001e1a;
+      border: 1px solid #003a32;
+      border-left: 4px solid #00b8a0;
+      border-radius: 0 4px 4px 0;
+      color: #b0d8cc;
+      font-size: 13px;
+      line-height: 1.7;
+      word-break: break-word;
+      opacity: 0;
+      animation: fadein 0.35s ease forwards;
+    }
+
+    /* inline citation markers spliced into answer text by the backend */
+    .cite-marker {
+      display: inline-block;
+      color: #66ddc8;
+      text-decoration: none;
+      font-size: 10px;
+      vertical-align: super;
+      line-height: 1;
+      margin: 0 1px;
+      padding: 1px 4px;
+      border-radius: 2px;
+      background: #003a32;
+      transition: background 0.15s, color 0.15s;
+    }
+    .cite-marker:hover {
+      background: #006a55;
+      color: #aaffe0;
+    }
+    .web-turn {
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    .web-turn + .web-turn {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed #003d4a;
+    }
+    .web-turn-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #4a8aa0;
+      margin-bottom: 8px;
+    }
+    .web-turn-ts {
+      color: #4a8aa0;
+    }
+    .web-turn-followup {
+      background: none;
+      border: 1px solid #0099bb;
+      color: #66ccdd;
+      font-family: inherit;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .web-turn-followup:hover {
+      background: #003d4a;
+      color: #aaeeff;
+    }
+    details.web-q {
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    details.web-q summary {
+      list-style: none;
+      font-size: 11px;
+      color: #6699aa;
+      padding: 4px 6px;
+      background: #00141a;
+      border-radius: 2px;
+      border: 1px solid #00303a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    details.web-q summary::-webkit-details-marker { display: none; }
+    details.web-q summary::before {
+      content: '▸ Q: ';
+      color: #4a8aa0;
+      font-weight: bold;
+    }
+    details.web-q[open] summary::before {
+      content: '▾ Q ';
+    }
+    details.web-q[open] summary {
+      white-space: normal;
+      overflow: visible;
+    }
+    /* When expanded, hide the preview text inside the summary — the full Q
+       block below is the source of truth. */
+    details.web-q[open] .web-q-preview { display: none; }
+    .web-q-full {
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: #00141a;
+      border-left: 2px solid #003d4a;
+      font-size: 12px;
+      color: #88bbcc;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .web-a {
+      margin-top: 6px;
+    }
+    .web-a-label {
+      font-size: 9px;
+      font-weight: bold;
+      letter-spacing: 0.14em;
+      color: #00aabb;
+      margin-right: 8px;
+    }
+    .web-a-text {
+      display: block;
+      margin-top: 4px;
+      color: #cce4ee;
+    }
+    /* markdown elements inside the answer */
+    .web-a-text > *:first-child { margin-top: 0; }
+    .web-a-text > *:last-child  { margin-bottom: 0; }
+    .web-a-text p { margin: 0 0 8px 0; }
+    .web-a-text ul, .web-a-text ol { margin: 4px 0 8px 22px; padding: 0; }
+    .web-a-text li { margin-bottom: 3px; }
+    .web-a-text li > p { display: inline; margin: 0; }
+    .web-a-text strong, .web-a-text b { color: #e0f0e8; font-weight: 600; }
+    .web-a-text em, .web-a-text i     { color: #c0dccc; font-style: italic; }
+    .web-a-text code {
+      background: #001a18;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-size: 12px;
+      color: #88e8c8;
+      border: 1px solid #003a32;
+    }
+    .web-a-text pre {
+      background: #001a18;
+      padding: 8px 10px;
+      border-radius: 3px;
+      border: 1px solid #003a32;
+      overflow-x: auto;
+      margin: 6px 0;
+    }
+    .web-a-text pre code {
+      background: transparent;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #b8e8d8;
+    }
+    .web-a-text blockquote {
+      border-left: 3px solid #00554a;
+      padding: 4px 10px;
+      margin: 6px 0;
+      color: #88c8b0;
+      font-style: italic;
+      background: #001a18;
+    }
+    .web-a-text h1, .web-a-text h2, .web-a-text h3,
+    .web-a-text h4, .web-a-text h5, .web-a-text h6 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e0f0e8;
+      margin: 10px 0 4px 0;
+      letter-spacing: 0.04em;
+    }
+    .web-a-text h1 { font-size: 14px; }
+    .web-a-text a:not(.cite-marker) {
+      color: #66ddc8;
+      text-decoration: underline;
+    }
+    .web-a-text a:not(.cite-marker):hover {
+      color: #aaffe0;
+    }
+    .web-a-text hr {
+      border: none;
+      border-top: 1px solid #003a32;
+      margin: 10px 0;
+    }
+    .web-a-text table {
+      border-collapse: collapse;
+      margin: 6px 0;
+      font-size: 12px;
+    }
+    .web-a-text th, .web-a-text td {
+      padding: 4px 8px;
+      border: 1px solid #003a32;
+    }
+    .web-a-text th { background: #00221e; }
+    /* term lookup — decoration in FORMATTED panel */
+    .term-decorated {
+      text-decoration: underline;
+      text-decoration-color: #4aaa99;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+      cursor: pointer;
+      color: inherit;
+      transition: color 0.15s, text-decoration-color 0.15s;
+    }
+    .term-decorated:hover {
+      color: #66ddc8;
+      text-decoration-color: #66ddc8;
+    }
+    .term-decorated.pending {
+      text-decoration-style: dotted;
+      text-decoration-color: #4a8a8a;
+    }
+    /* active lookup indicator in FORMATTED panel header */
+    #term-lookup-active {
+      display: none;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      text-transform: none;
+      color: #66ddc8;
+      background: #001a18;
+      border: 1px solid #003a32;
+      padding: 2px 8px;
+      border-radius: 3px;
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #term-lookup-active.active { display: inline-block; }
+    #term-lookup-active::before {
+      content: '⟳ ';
+      display: inline-block;
+      animation: spin-slow 1.2s linear infinite;
+    }
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    /* term popover (click-to-open, persistent) */
+    #term-popover {
+      display: none;
+      position: fixed;
+      z-index: 200;
+      max-width: 420px;
+      background: #001a18;
+      border: 1px solid #00554a;
+      border-left: 4px solid #00b8a0;
+      border-radius: 0 4px 4px 0;
+      padding: 12px 14px;
+      color: #b0d8cc;
+      font-size: 12px;
+      line-height: 1.55;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    #term-popover.open { display: block; }
+    #term-popover .term-popover-term {
+      font-weight: 600;
+      font-size: 13px;
+      color: #e0f0e8;
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+    #term-popover .term-popover-def {
+      color: #cce4dc;
+    }
+    /* markdown inside the popover definition */
+    #term-popover .term-popover-def > *:first-child { margin-top: 0; }
+    #term-popover .term-popover-def > *:last-child  { margin-bottom: 0; }
+    #term-popover .term-popover-def p { margin: 0 0 6px 0; }
+    #term-popover .term-popover-def ul,
+    #term-popover .term-popover-def ol { margin: 4px 0 6px 20px; padding: 0; }
+    #term-popover .term-popover-def li { margin-bottom: 2px; }
+    #term-popover .term-popover-def strong,
+    #term-popover .term-popover-def b { color: #e0f0e8; font-weight: 600; }
+    #term-popover .term-popover-def em,
+    #term-popover .term-popover-def i { color: #c0dccc; font-style: italic; }
+    #term-popover .term-popover-def code {
+      background: #00141a;
+      padding: 1px 4px;
+      border-radius: 2px;
+      font-size: 11px;
+      color: #88e8c8;
+      border: 1px solid #003a32;
+    }
+    #term-popover .term-popover-def a { color: #66ddc8; text-decoration: underline; }
+    #term-popover .term-popover-def a:hover { color: #aaffe0; }
+    #term-popover .term-popover-sources {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid #003a32;
+      font-size: 10px;
+      color: #5a8a82;
+      line-height: 1.6;
+    }
+    #term-popover .term-popover-sources a {
+      color: #66bbcc;
+      text-decoration: none;
+      margin-right: 8px;
+      word-break: break-all;
+    }
+    #term-popover .term-popover-sources a:hover {
+      color: #aaeeff;
+      text-decoration: underline;
+    }
+    #term-popover .term-popover-close {
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      background: none;
+      border: none;
+      color: #5a8a82;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 6px;
+      line-height: 1;
+    }
+    #term-popover .term-popover-close:hover { color: #ddd; }
+    /* toggle button for term lookups */
+    .ribbon-btn.term {
+      background: #001a18;
+      border-color: #003a32;
+      color: #4aaa99;
+    }
+    .ribbon-btn.term:hover {
+      background: #002a26;
+      border-color: #006a55;
+      color: #66ddc8;
+    }
+    .ribbon-btn.term.active {
+      background: #002a26;
+      border-color: #00b8a0;
+      color: #66ddc8;
+    }
+    .mermaid-diagram {
+      background: #001a18;
+      border: 1px solid #003a32;
+      border-radius: 3px;
+      padding: 10px;
+      margin: 8px 0;
+      text-align: center;
+      overflow-x: auto;
+    }
+    .mermaid-diagram svg { max-width: 100%; height: auto; }
+    .mermaid-error {
+      background: #2a0000;
+      border-left: 3px solid #aa0000;
+      padding: 8px 10px;
+      margin: 6px 0;
+      color: #ff8a8a;
+      font-size: 11px;
+      font-family: inherit;
+    }
+    .web-sources {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #002a36;
+      font-size: 10px;
+      color: #5a8a9a;
+      line-height: 1.7;
+    }
+    .web-sources-label {
+      font-weight: bold;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #4a8aa0;
+      margin-right: 6px;
+    }
+    .web-sources a {
+      color: #66bbcc;
+      text-decoration: none;
+      margin-right: 10px;
+      word-break: break-all;
+    }
+    .web-sources a:hover {
+      color: #aaeeff;
+      text-decoration: underline;
+    }
+    .web-followup-input {
+      margin-top: 10px;
+      padding: 8px;
+      background: #00141a;
+      border: 1px solid #003d4a;
+      border-radius: 2px;
+    }
+    .web-followup-input textarea {
+      width: 100%;
+      background: #001018;
+      border: 1px solid #003d4a;
+      color: #aaccdd;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 5px 7px;
+      border-radius: 2px;
+      resize: vertical;
+      min-height: 50px;
+    }
+    .web-followup-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+      margin-top: 6px;
+    }
+    .web-followup-btn {
+      background: #003040;
+      border: 1px solid #005566;
+      color: #66bbcc;
+      font-family: inherit;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+    .web-followup-btn:hover { background: #004055; color: #aaeeff; }
+    .web-followup-btn.cancel { background: #1a1a1a; border-color: #444; color: #777; }
+    .web-pending {
+      margin-top: 10px;
+      padding: 6px 10px;
+      background: #00141a;
+      border-left: 2px solid #003d4a;
+      font-size: 10px;
+      color: #4a8aa0;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      animation: pulse-web 1.4s ease-in-out infinite;
+    }
+    .web-pending.standalone {
+      margin: 0 0 18px 0;
+      padding: 10px 14px;
+      border-left: 4px solid #003d4a;
+      border-top: 1px solid #003d4a;
+      border-right: 1px solid #003d4a;
+      border-bottom: 1px solid #003d4a;
+      border-radius: 0 4px 4px 0;
+      background: #00121a;
+    }
+    @keyframes pulse-web {
+      0%, 100% { opacity: 0.3; border-left-color: #002a36; }
+      50%       { opacity: 1;   border-left-color: #0099bb; }
+    }
+    .ribbon-btn.cyan {
+      background: #001a26;
+      border-color: #004455;
+      color: #4a99aa;
+    }
+    .ribbon-btn.cyan:hover {
+      background: #002a3a;
+      border-color: #006677;
+      color: #66ccdd;
+    }
+    .ribbon-btn.teal {
+      background: #00221e;
+      border-color: #00554a;
+      color: #4aaa99;
+    }
+    .ribbon-btn.teal:hover {
+      background: #003a32;
+      border-color: #008877;
+      color: #66ddc8;
+    }
+    /* pending ask placeholder */
+    .ask-pending {
+      margin-bottom: 14px;
+      padding: 8px 12px;
+      background: #130020;
+      border-left: 2px solid #4a2a6a;
+      font-size: 11px;
+      color: #6a4a8a;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      animation: pulse-ask 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse-ask {
+      0%, 100% { opacity: 0.3; border-left-color: #3a1a5a; }
+      50%       { opacity: 1;   border-left-color: #7a4aaa; }
+    }
+    /* formatted text panel */
+    #text-content p {
+      line-height: 1.8;
+      margin-bottom: 1em;
+      white-space: pre-wrap;
+      padding-left: 10px;
+      border-left: 2px solid transparent;
+      margin-left: -12px;
+      transition: border-left-color 0.4s ease;
+    }
+    #text-content p.finalized { color: #aaa; }
+    #text-content p.current   { color: #e0e0e0; }
+    #text-content p.sent-fresh { border-left-color: #4cb8c8; }
+    #text-content p.sent-stale { border-left-color: #1f4a52; }
+    .cursor {
+      display: inline-block;
+      color: #e0e0e0;
+      animation: blink 1s step-start infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* ── log drawer ─────────────────────────────────────────────────────────── */
+    #log-drawer {
+      flex-shrink: 0;
+      height: 0;
+      overflow: hidden;
+      transition: height 0.2s ease;
+      border-top: 1px solid #2a2a2a;
+    }
+    #log-drawer.open {
+      height: 240px;
+    }
+    #log-drawer .panel {
+      height: 100%;
+      min-width: 0;
+    }
+
+    /* ── bottom ribbon ──────────────────────────────────────────────────────── */
+    #ribbon {
+      flex-shrink: 0;
+      height: 36px;
+      background: #1e1e1e;
+      border-top: 1px solid #333;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+    }
+
+    .ribbon-btn {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      color: #777;
+      font-family: inherit;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .ribbon-btn:hover {
+      background: #333;
+      border-color: #555;
+      color: #aaa;
+    }
+    .ribbon-btn.active {
+      background: #1a2a1a;
+      border-color: #3a5a3a;
+      color: #5f5;
+    }
+    .ribbon-btn.amber {
+      background: #2a2000;
+      border-color: #554400;
+      color: #997700;
+    }
+    .ribbon-btn.amber:hover {
+      background: #3a3000;
+      border-color: #997700;
+      color: #ccaa55;
+    }
+    .ribbon-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .ribbon-btn.danger {
+      background: #2a0a0a;
+      border-color: #5a1a1a;
+      color: #884444;
+    }
+    .ribbon-btn.danger:hover {
+      background: #3a1010;
+      border-color: #884444;
+      color: #cc6666;
+    }
+
+    #ribbon-spacer { flex: 1; }
+
+    /* ask modal presets */
+    .preset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+    .preset-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .preset-btn {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #aaa;
+      font-family: inherit;
+      font-size: 11px;
+      padding: 4px 8px;
+      text-align: left;
+      cursor: pointer;
+      border-radius: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .preset-btn:hover { border-color: #555; color: #ddd; background: #222; }
+    .preset-del {
+      background: none;
+      border: none;
+      color: #444;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 0 2px;
+      flex-shrink: 0;
+    }
+    .preset-del:hover { color: #f55; }
+    #ask-modal { width: 440px; }
+    #ask-modal textarea { min-height: 80px; resize: vertical; }
+
+    #ask-selection-banner {
+      background: #002a26;
+      border: 1px solid #004a44;
+      border-left: 4px solid #00aa88;
+      border-radius: 0 3px 3px 0;
+      padding: 8px 10px;
+      position: relative;
+    }
+    .ask-sel-label {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #4aa088;
+      margin-bottom: 4px;
+    }
+    .ask-sel-text {
+      font-size: 12px;
+      color: #88c8b0;
+      font-style: italic;
+      max-height: 80px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding-right: 50px;
+    }
+    .ask-sel-clear {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: #5a8a78;
+      cursor: pointer;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 6px;
+    }
+    .ask-sel-clear:hover { color: #aaeeb0; }
+
+    /* active instruction badge */
+    #instruct-badge {
+      display: none;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      background: #2a1a00;
+      border: 1px solid #664400;
+      color: #cc8800;
+      padding: 2px 6px;
+      border-radius: 3px;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #instruct-badge.active { display: inline-block; }
+
+    /* ── modal ──────────────────────────────────────────────────────────────── */
+    #ai-modal-overlay,
+    #chat-modal-overlay,
+    #instruct-modal-overlay,
+    #ask-modal-overlay,
+    #prompts-modal-overlay,
+    #qa-focus-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #ai-modal-overlay.open,
+    #chat-modal-overlay.open,
+    #instruct-modal-overlay.open,
+    #ask-modal-overlay.open,
+    #prompts-modal-overlay.open,
+    #qa-focus-modal-overlay.open { display: flex; }
+
+    /* Q&A focused view (per-thread modal) */
+    #qa-focus-modal {
+      background: #181818;
+      border: 1px solid #444;
+      border-radius: 4px;
+      width: 820px;
+      max-width: 94vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .qa-focus-header {
+      flex-shrink: 0;
+      padding: 10px 14px;
+      background: #222;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .qa-focus-title {
+      flex: 1;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #888;
+      text-transform: uppercase;
+    }
+    .qa-focus-close {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 8px;
+      line-height: 1;
+    }
+    .qa-focus-close:hover { color: #ddd; }
+    .qa-focus-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      background: #141414;
+    }
+    .qa-focus-body .web-thread {
+      margin-bottom: 0;
+      font-size: 14px;
+      padding: 16px 20px;
+    }
+    .qa-focus-body .web-a-text { font-size: 14px; }
+    /* Inline follow-up button is redundant inside the focused modal (there's a
+       permanent textarea below); hide it here only. */
+    #qa-focus-turns .web-turn-followup,
+    #qa-focus-turns .web-turn-focus { display: none; }
+    .qa-focus-footer {
+      flex-shrink: 0;
+      padding: 12px 14px;
+      background: #1e1e1e;
+      border-top: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .qa-focus-footer textarea {
+      background: #0a0a0a;
+      border: 1px solid #00554a;
+      color: #b0d8cc;
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 3px;
+      resize: vertical;
+      min-height: 60px;
+      width: 100%;
+    }
+    .qa-focus-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    /* per-card "focus" button — sits next to FOLLOW UP */
+    .web-turn-focus {
+      background: none;
+      border: 1px solid #006a55;
+      color: #66d8c0;
+      font-family: inherit;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      margin-left: 6px;
+    }
+    .web-turn-focus:hover {
+      background: #003a32;
+      color: #aaeed0;
+    }
+    #ai-modal {
+      background: #222;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 20px;
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    #ai-modal label {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #888;
+    }
+    #ai-modal select, #ai-modal textarea {
+      background: #1a1a1a;
+      border: 1px solid #444;
+      color: #d4d4d4;
+      font-family: inherit;
+      font-size: 13px;
+      padding: 6px 8px;
+      border-radius: 3px;
+      width: 100%;
+    }
+    #ai-modal textarea { resize: vertical; min-height: 60px; }
+    #ai-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-btn {
+      background: #2a2000;
+      border: 1px solid #554400;
+      color: #997700;
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .modal-btn:hover { background: #3a3000; color: #ccaa55; }
+    .modal-btn.cancel { background: #2a2a2a; border-color: #444; color: #666; }
+    .modal-btn.cancel:hover { color: #aaa; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- main panel row -->
+    <div id="main-row">
+      <!-- transcript -->
+      <div class="panel" id="panel-raw">
+        <div class="panel-header">
+          <span id="status-dot"></span>
+          <span class="label">TRANSCRIPT <span id="profile-name" title="Click to view profile prompts">— …</span></span>
+          <span id="status-text">disconnected</span>
+        </div>
+        <div class="panel-body" id="raw-body">
+          <div id="raw-content"></div>
+        </div>
+      </div>
+
+      <div class="divider" id="div-raw-fmt"></div>
+
+      <!-- formatted text -->
+      <div class="panel" id="panel-formatted">
+        <div class="panel-header">
+          <span class="label">FORMATTED</span>
+          <span id="term-lookup-active" title="A term is being looked up..."></span>
+        </div>
+        <div class="panel-body" id="text-body">
+          <div id="text-content"></div>
+        </div>
+      </div>
+
+      <div class="divider" id="div-fmt-suggestions"></div>
+
+      <!-- live notes: autonomous AI commentary (SUMMARY/QUESTION etc.) -->
+      <div class="panel" id="panel-suggestions">
+        <div class="panel-header">
+          <span class="label">LIVE NOTES</span>
+        </div>
+        <div class="panel-body" id="suggestions-body">
+          <div id="suggestions-content"></div>
+        </div>
+        <div class="panel-footer">
+          <button class="ribbon-btn" id="instruct-btn">INSTRUCT</button>
+          <button class="ribbon-btn" id="nudge-btn" title="Force the advisor to produce a suggestion now, based on everything finalized since the last one">NUDGE</button>
+          <span id="instruct-badge"></span>
+          <span style="flex:1"></span>
+          <button class="ribbon-btn danger" id="clear-live-notes-btn" title="Clear LIVE NOTES contents only">CLEAR</button>
+        </div>
+      </div>
+
+      <div class="divider" id="div-suggestions-web"></div>
+
+      <!-- Q&A: holds ASK (advisor) + RESEARCH (web) threads -->
+      <div class="panel" id="panel-web">
+        <div class="panel-header">
+          <span class="label">Q&amp;A</span>
+        </div>
+        <div class="panel-body" id="web-body">
+          <div id="web-content"></div>
+        </div>
+        <div class="panel-footer">
+          <button class="ribbon-btn teal" id="ask-btn">ASK</button>
+          <span style="flex:1"></span>
+          <button class="ribbon-btn danger" id="clear-qa-btn" title="Clear Q&amp;A panel contents only">CLEAR</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- log drawer (collapsible, above ribbon) -->
+    <div id="log-drawer">
+      <div class="panel" id="panel-log">
+        <div class="panel-header">
+          <span class="label">LLM LOG</span>
+        </div>
+        <div class="panel-body" id="log-body">
+          <div id="log-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- bottom ribbon -->
+    <div id="ribbon">
+      <button class="ribbon-btn active" id="transcript-toggle-btn">TRANSCRIPT ◀</button>
+      <button class="ribbon-btn active" id="web-toggle-btn">Q&amp;A ◀</button>
+      <button class="ribbon-btn" id="log-toggle-btn">LOG ▼</button>
+      <button class="ribbon-btn term" id="terms-toggle-btn" title="Toggle term lookup (extracts interesting terms from transcript)">TERMS OFF</button>
+      <div id="ribbon-spacer"></div>
+      <button class="ribbon-btn danger" id="clear-btn">CLEAR</button>
+    </div>
+  </div>
+
+  <!-- term lookup popover (positioned dynamically near the clicked term) -->
+  <div id="term-popover">
+    <button class="term-popover-close" id="term-popover-close" title="Close">&times;</button>
+    <div class="term-popover-term" id="term-popover-term"></div>
+    <div class="term-popover-def" id="term-popover-def"></div>
+    <div class="term-popover-sources" id="term-popover-sources"></div>
+  </div>
+
+  <!-- Instruct modal -->
+  <div id="instruct-modal-overlay">
+    <div id="ai-modal">
+      <label>Active instruction (sticky — applies to every suggestion until cleared)</label>
+      <textarea id="instruct-text" placeholder='e.g. "Make sure my character pops a rage before any battle"' rows="4"></textarea>
+      <div id="ai-modal-actions">
+        <button class="modal-btn cancel" id="instruct-clear-btn">Clear</button>
+        <button class="modal-btn cancel" id="instruct-cancel-btn">Cancel</button>
+        <button class="modal-btn" id="instruct-submit-btn">Set</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Q&A focused-view modal (per-thread, larger reading surface + inline follow-up) -->
+  <div id="qa-focus-modal-overlay">
+    <div id="qa-focus-modal">
+      <div class="qa-focus-header">
+        <span class="qa-focus-title">Focused Q&amp;A</span>
+        <button class="qa-focus-close" id="qa-focus-close-btn" title="Close">&times;</button>
+      </div>
+      <div class="qa-focus-body" id="qa-focus-turns"></div>
+      <div class="qa-focus-footer">
+        <textarea id="qa-focus-followup-text" placeholder="Follow-up question…  ⌘/Ctrl+Enter to send" rows="3"></textarea>
+        <div class="qa-focus-actions">
+          <button class="modal-btn cancel" id="qa-focus-cancel-btn">Close</button>
+          <button class="modal-btn" id="qa-focus-send-btn">Send follow-up</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile prompts modal -->
+  <div id="prompts-modal-overlay">
+    <div id="ai-modal" style="width: 720px; max-height: 85vh;">
+      <label>Profile prompts: <span id="prompts-modal-profile" style="color:#6a9;font-weight:normal;text-transform:none;letter-spacing:0">—</span></label>
+      <div id="prompts-modal">
+        <details open class="prompt-section" id="prompts-advisor-section">
+          <summary>Advisor prompt</summary>
+          <pre class="prompt-display" id="prompts-advisor-text">(loading...)</pre>
+          <div class="prompt-meta" id="prompts-advisor-path"></div>
+        </details>
+        <details open class="prompt-section" id="prompts-backstory-section">
+          <summary>Backstory <span class="prompt-edit-hint">(editable)</span></summary>
+          <textarea class="prompt-edit" id="prompts-backstory-text" placeholder="(loading...)"></textarea>
+          <div class="prompt-backstory-actions">
+            <span class="prompt-meta" id="prompts-backstory-path"></span>
+            <span class="prompt-save-status" id="prompts-backstory-status"></span>
+            <button class="modal-btn cancel" id="prompts-backstory-revert">Revert</button>
+            <button class="modal-btn" id="prompts-backstory-save">Save</button>
+          </div>
+        </details>
+      </div>
+      <div id="ai-modal-actions">
+        <button class="modal-btn cancel" id="prompts-close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ASK modal (unified Q&A — web search auto-invoked by model when needed) -->
+  <div id="ask-modal-overlay">
+    <div id="ai-modal">
+      <div id="ask-selection-banner" style="display:none">
+        <div class="ask-sel-label">📎 Highlighted (will be sent and emphasized):</div>
+        <div class="ask-sel-text" id="ask-selection-text"></div>
+        <button class="ask-sel-clear" id="ask-selection-clear">clear</button>
+      </div>
+      <label>Presets</label>
+      <div class="preset-list" id="preset-list"></div>
+      <label style="margin-top:8px">Your question</label>
+      <textarea id="ask-prompt" placeholder="Type a question, or click a preset above. ⌘/Ctrl+Enter to send." rows="4"></textarea>
+      <div id="ai-modal-actions">
+        <button class="modal-btn cancel" id="ask-save-preset-btn">+ Save preset</button>
+        <button class="modal-btn cancel" id="ask-cancel-btn">Cancel</button>
+        <button class="modal-btn" id="ask-submit-btn">Ask</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    const statusDot          = document.getElementById('status-dot');
+    const statusText         = document.getElementById('status-text');
+    const rawContent         = document.getElementById('raw-content');
+    const rawBody            = document.getElementById('raw-body');
+    const logContent         = document.getElementById('log-content');
+    const logBody            = document.getElementById('log-body');
+    const textContent        = document.getElementById('text-content');
+    const textBody           = document.getElementById('text-body');
+    const suggestionsContent = document.getElementById('suggestions-content');
+    const suggestionsBody    = document.getElementById('suggestions-body');
+    const webContent         = document.getElementById('web-content');
+    const webBody            = document.getElementById('web-body');
+    const profileNameEl      = document.getElementById('profile-name');
+
+    // ── draggable dividers ───────────────────────────────────────────────────
+    function initDivider(divider, leftPanel, rightPanel) {
+      let dragging = false, startX, startL, startR;
+      divider.addEventListener('mousedown', e => {
+        dragging = true;
+        startX = e.clientX;
+        startL = leftPanel.offsetWidth;
+        startR = rightPanel.offsetWidth;
+        divider.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        const total = startL + startR;
+        const newL = Math.max(80, Math.min(total - 80, startL + dx));
+        leftPanel.style.flex = 'none';
+        leftPanel.style.width = newL + 'px';
+        rightPanel.style.flex = '1 1 0';
+        rightPanel.style.width = '';
+      });
+      document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        divider.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      });
+    }
+
+    initDivider(
+      document.getElementById('div-raw-fmt'),
+      document.getElementById('panel-raw'),
+      document.getElementById('panel-formatted')
+    );
+    initDivider(
+      document.getElementById('div-fmt-suggestions'),
+      document.getElementById('panel-formatted'),
+      document.getElementById('panel-suggestions')
+    );
+    initDivider(
+      document.getElementById('div-suggestions-web'),
+      document.getElementById('panel-suggestions'),
+      document.getElementById('panel-web')
+    );
+
+    // ── log drawer toggle ────────────────────────────────────────────────────
+    const logDrawer    = document.getElementById('log-drawer');
+    const logToggleBtn = document.getElementById('log-toggle-btn');
+
+    logToggleBtn.addEventListener('click', () => {
+      const open = logDrawer.classList.toggle('open');
+      logToggleBtn.textContent = open ? 'LOG ▲' : 'LOG ▼';
+      logToggleBtn.classList.toggle('active', open);
+      if (open) logBody.scrollTop = logBody.scrollHeight;
+    });
+
+    // ── TRANSCRIPT / WEB panel toggles ───────────────────────────────────────
+    const panelRaw         = document.getElementById('panel-raw');
+    const dividerRawFmt    = document.getElementById('div-raw-fmt');
+    const panelWeb         = document.getElementById('panel-web');
+    const dividerSuggWeb   = document.getElementById('div-suggestions-web');
+    const transcriptBtn    = document.getElementById('transcript-toggle-btn');
+    const webToggleBtn     = document.getElementById('web-toggle-btn');
+
+    transcriptBtn.addEventListener('click', () => {
+      const hidden = panelRaw.classList.toggle('hidden');
+      dividerRawFmt.classList.toggle('hidden', hidden);
+      transcriptBtn.classList.toggle('active', !hidden);
+      transcriptBtn.textContent = hidden ? 'TRANSCRIPT ▶' : 'TRANSCRIPT ◀';
+    });
+
+    webToggleBtn.addEventListener('click', () => {
+      const hidden = panelWeb.classList.toggle('hidden');
+      dividerSuggWeb.classList.toggle('hidden', hidden);
+      webToggleBtn.classList.toggle('active', !hidden);
+      webToggleBtn.textContent = hidden ? 'WEB ▶' : 'WEB ◀';
+      if (!hidden) webBody.scrollTop = webBody.scrollHeight;
+    });
+
+    // ── smart auto-scroll ────────────────────────────────────────────────────
+    function isNearBottom(el) {
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 300;
+    }
+    function autoScroll(el) {
+      if (isNearBottom(el)) el.scrollTop = el.scrollHeight;
+    }
+
+    // ── websocket ────────────────────────────────────────────────────────────
+    const WS_URL = `ws://${location.hostname}:8765/ws`;
+    let ws = null;
+    let reconnectTimer = null;
+    let currentBlock = null;
+
+
+    function connect() {
+      ws = new WebSocket(WS_URL);
+
+      ws.addEventListener('open', () => {
+        statusDot.classList.add('connected');
+        statusText.textContent = 'connected';
+        clearTimeout(reconnectTimer);
+      });
+      ws.addEventListener('close', () => {
+        statusDot.classList.remove('connected');
+        statusText.textContent = 'disconnected';
+        scheduleReconnect();
+      });
+      ws.addEventListener('error', () => ws.close());
+
+      ws.addEventListener('message', (event) => {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch (_) { return; }
+
+        const snap = {
+          raw:         isNearBottom(rawBody),
+          log:         isNearBottom(logBody),
+          text:        isNearBottom(textBody),
+          suggestions: isNearBottom(suggestionsBody),
+          web:         isNearBottom(webBody),
+        };
+
+        if (msg.type === 'raw') {
+          const p = document.createElement('p');
+          p.textContent = msg.text;
+          rawContent.appendChild(p);
+
+        } else if (msg.type === 'document') {
+          applyDocument(msg.paragraphs, msg.current);
+          redecorateAllParagraphs();
+
+        } else if (msg.type === 'term_lookup_start') {
+          setActiveLookup(msg.term);
+
+        } else if (msg.type === 'term_lookup_done') {
+          setActiveLookup('');
+          const entry = msg.entry || {};
+          const key = (entry.term || '').toLowerCase();
+          if (key) {
+            termCache.set(key, entry);
+            decorateAllForTerm(entry);
+          }
+
+        } else if (msg.type === 'sent_state') {
+          sentFresh = new Set(msg.fresh || []);
+          sentStale = new Set(msg.stale || []);
+          reapplySentMarkers();
+
+        } else if (msg.type === 'term_lookup_enabled') {
+          setTermsToggleVisual(!!msg.enabled);
+
+        } else if (msg.type === 'suggestion') {
+          // SUGGESTIONS panel is AUTO-only now; defensive: silently drop ask source if any
+          if (msg.source !== 'ask') {
+            suggestionsContent.querySelectorAll('.suggestion-item.latest').forEach(el => el.classList.remove('latest'));
+            const item = buildAutoItem(msg.text, new Date().toLocaleTimeString(), msg.ts_ms || Date.now());
+            item.classList.add('latest');
+            suggestionsContent.appendChild(item);
+          }
+
+        } else if (msg.type === 'restore') {
+          if (msg.profile) profileNameEl.textContent = '— ' + msg.profile;
+          sentFresh = new Set(msg.sent_fresh || []);
+          sentStale = new Set(msg.sent_stale || []);
+          applyDocument(msg.paragraphs || [], msg.current || '');
+          // rebuild term cache from server snapshot
+          termCache.clear();
+          for (const t of (msg.terms || [])) {
+            const k = (t.term || '').toLowerCase();
+            if (k) termCache.set(k, t);
+          }
+          redecorateAllParagraphs();
+          setTermsToggleVisual(!!msg.term_lookup_enabled);
+          suggestionsContent.innerHTML = '';
+          const restoredSuggs = (msg.suggestions || []).filter(s => s.source !== 'ask');
+          restoredSuggs.forEach((s, i) => {
+            const item = buildAutoItem(s.text, s.ts || '', s.ts_ms || Date.now());
+            if (i === restoredSuggs.length - 1) item.classList.add('latest');
+            suggestionsContent.appendChild(item);
+          });
+          applyInstruction(msg.instruction || '');
+          webContent.innerHTML = '';
+          webThreads.clear();
+          pendingQaTopEl = null;
+          // server migrates legacy ask_threads + web_threads into qa_threads
+          for (const t of (msg.qa_threads || [])) {
+            renderQaThread(t);
+          }
+
+        } else if (msg.type === 'live_notes_cleared') {
+          suggestionsContent.innerHTML = '';
+
+        } else if (msg.type === 'qa_cleared') {
+          webContent.innerHTML = '';
+          webThreads.clear();
+          pendingQaTopEl = null;
+          clearBusy(askBtn);
+          closeFocusModal();
+
+        } else if (msg.type === 'cleared') {
+          rawContent.innerHTML = '';
+          logContent.innerHTML = '';
+          sentFresh = new Set();
+          sentStale = new Set();
+          applyDocument([], '');
+          suggestionsContent.innerHTML = '';
+          applyInstruction('');
+          webContent.innerHTML = '';
+          webThreads.clear();
+          pendingQaTopEl = null;
+          clearBusy(askBtn);
+          closeFocusModal();
+          termCache.clear();
+          hideTermPopover();
+          setActiveLookup('');
+
+        } else if (msg.type === 'qa_thread') {
+          handleQaThread(msg);
+
+        } else if (msg.type === 'prompts_data') {
+          renderPromptsModal(msg);
+
+        } else if (msg.type === 'backstory_saved') {
+          if (msg.ok) {
+            promptsBackstoryOriginal = promptsBackstoryEl.value;
+            setBackstoryStatus('saved ✓', 'ok');
+            setTimeout(() => setBackstoryStatus('', ''), 2500);
+          } else {
+            setBackstoryStatus('error: ' + (msg.error || 'unknown'), 'err');
+          }
+
+        } else if (msg.type === 'log') {
+          if (msg.step === 'chunk') {
+            currentBlock = document.createElement('div');
+            currentBlock.className = 'log-block';
+            const sep = document.createElement('div');
+            sep.className = 'log-sep';
+            sep.textContent = `── ${msg.ts} ${'─'.repeat(60)}`;
+            currentBlock.appendChild(sep);
+            addRow(currentBlock, 'CHUNK', 'lbl-chunk', msg.text);
+            logContent.appendChild(currentBlock);
+          } else if (msg.step === 'continuation_queued' && currentBlock) {
+            addRow(currentBlock, 'CONT LAST', 'lbl-context', msg.last);
+            addRow(currentBlock, 'CONT B+1', 'lbl-context', msg.b_context);
+          } else if (msg.step === 'continuation_result') {
+            const block = document.createElement('div');
+            block.className = 'log-block';
+            const label = msg.merged ? 'CONT MERGE' : 'CONT SKIP';
+            const cls = msg.merged ? 'lbl-decision' : 'lbl-context';
+            if (msg.v1) addRow(block, 'SENT 1', 'lbl-context', msg.v1);
+            if (msg.v2) addRow(block, 'SENT 2', 'lbl-context', msg.v2);
+            addRow(block, label, cls, `verdict=${msg.verdict}`);
+            logContent.appendChild(block);
+          } else if (msg.step === 'segment' && currentBlock) {
+            const text = msg.sentences.map((s, i) => `[${i}] ${s}`).join('\n');
+            addRow(currentBlock, 'SEGMENT', 'lbl-context', text);
+          } else if (msg.step === 'new_para' && currentBlock) {
+            addRow(currentBlock, 'NEW PARA', 'lbl-decision', `next break in ${msg.next_break}`);
+          } else if (msg.step === 'splits_scan' && currentBlock) {
+            const text = msg.sentences.map((s, i) => `[${i}] ${s}`).join('\n');
+            addRow(currentBlock, 'SCAN', 'lbl-context', text);
+          } else if (msg.step === 'splits' && currentBlock) {
+            const text = msg.indices.length ? `split at [${msg.indices.join(', ')}]` : 'no split';
+            const cls = msg.indices.length ? 'lbl-decision' : 'lbl-context';
+            addRow(currentBlock, 'SPLITS', cls, text);
+          } else if (msg.step === 'restructure') {
+            currentBlock = document.createElement('div');
+            currentBlock.className = 'log-block';
+            const sep = document.createElement('div');
+            sep.className = 'log-sep';
+            sep.textContent = `── RESTRUCTURE ${'─'.repeat(50)}`;
+            currentBlock.appendChild(sep);
+            msg.sentences.forEach((s, i) => addRow(currentBlock, `SENT ${i}`, 'lbl-context', s));
+            logContent.appendChild(currentBlock);
+          } else if (msg.step === 'restructure_result' && currentBlock) {
+            const hasSplits = msg.indices && msg.indices.length > 0;
+            const label = hasSplits ? `RESTRUCTURE → split at [${msg.indices.join(', ')}]` : 'RESTRUCTURE — no change';
+            const cls = hasSplits ? 'lbl-decision' : 'lbl-context';
+            addRow(currentBlock, label, cls, '');
+          }
+        }
+
+        if (snap.raw)         rawBody.scrollTop         = rawBody.scrollHeight;
+        if (snap.log)         logBody.scrollTop         = logBody.scrollHeight;
+        if (snap.text)        textBody.scrollTop        = textBody.scrollHeight;
+        if (snap.suggestions) suggestionsBody.scrollTop = suggestionsBody.scrollHeight;
+        if (snap.web)         webBody.scrollTop         = webBody.scrollHeight;
+      });
+    }
+
+    const askBtn         = document.getElementById('ask-btn');
+
+    let sentFresh = new Set();
+    let sentStale = new Set();
+
+    function applySentClassToParagraph(p, idx) {
+      p.classList.remove('sent-fresh', 'sent-stale');
+      if (sentFresh.has(idx)) p.classList.add('sent-fresh');
+      else if (sentStale.has(idx)) p.classList.add('sent-stale');
+    }
+
+    function reapplySentMarkers() {
+      textContent.querySelectorAll('p.finalized').forEach((p) => {
+        const idx = parseInt(p.dataset.idx || '-1', 10);
+        if (idx >= 0) applySentClassToParagraph(p, idx);
+      });
+    }
+
+    function applyDocument(paragraphs, current) {
+      textContent.innerHTML = '';
+      paragraphs.forEach((text, idx) => {
+        const p = document.createElement('p');
+        p.className = 'finalized';
+        p.dataset.idx = String(idx);
+        applySentClassToParagraph(p, idx);
+        p.textContent = text;
+        textContent.appendChild(p);
+      });
+      if (current) {
+        const p = document.createElement('p');
+        p.className = 'current';
+        p.appendChild(document.createTextNode(current));
+        const cursor = document.createElement('span');
+        cursor.className = 'cursor';
+        cursor.textContent = '|';
+        p.appendChild(cursor);
+        textContent.appendChild(p);
+      }
+    }
+
+    function applyInstruction(text) {
+      activeInstruction = text;
+      if (text) {
+        instructBadge.textContent = text.length > 30 ? text.slice(0, 30) + '…' : text;
+        instructBadge.classList.add('active');
+      } else {
+        instructBadge.textContent = '';
+        instructBadge.classList.remove('active');
+      }
+    }
+
+    function buildAutoItem(text, ts, tsMs) {
+      const item = document.createElement('div');
+      item.className = 'suggestion-item';
+      if (tsMs) item.dataset.tsMs = String(tsMs);
+      const sw = document.createElement('span');
+      sw.className = 'sugg-stopwatch';
+      sw.textContent = '0:00';
+      item.appendChild(sw);
+      const tsDiv = document.createElement('div');
+      tsDiv.className = 'suggestion-ts';
+      tsDiv.textContent = ts;
+      item.appendChild(tsDiv);
+      renderSuggestionLines(item, text);
+      return item;
+    }
+
+    function formatStopwatch(ms) {
+      const secs = Math.max(0, Math.floor(ms / 1000));
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    setInterval(() => {
+      const now = Date.now();
+      document.querySelectorAll('#suggestions-content .suggestion-item').forEach(item => {
+        const tsMs = parseInt(item.dataset.tsMs || '0', 10);
+        if (!tsMs) return;
+        const sw = item.querySelector('.sugg-stopwatch');
+        if (sw) sw.textContent = formatStopwatch(now - tsMs);
+      });
+    }, 1000);
+
+    const SUGG_LABELS = {
+      HAROLD: 'harold', PARTY: 'party', OOC: 'ooc',
+      SUMMARY: 'summary', QUESTION: 'question',
+      READ: 'read', CALL: 'call',
+    };
+    const SUGG_LABEL_RE = /^(HAROLD|PARTY|OOC|SUMMARY|QUESTION|READ|CALL):\s*/i;
+
+    function renderSuggestionLines(container, text) {
+      const lines = text.split('\n').filter(l => l.trim());
+      lines.forEach((line) => {
+        const span = document.createElement('span');
+        span.className = 'sugg-line';
+        const m = line.match(SUGG_LABEL_RE);
+        if (m) {
+          const key = m[1].toUpperCase();
+          const cls = SUGG_LABELS[key];
+          const lbl = document.createElement('span');
+          lbl.className = `sugg-lbl sugg-lbl-${cls}`;
+          lbl.textContent = key;
+          span.appendChild(lbl);
+          const rest = document.createElement('span');
+          rest.className = `sugg-text-${cls}`;
+          rest.textContent = line.slice(m[0].length);
+          span.appendChild(rest);
+        } else {
+          span.textContent = line;
+        }
+        container.appendChild(span);
+      });
+    }
+
+
+    function addRow(block, label, lblClass, text) {
+      const lbl = document.createElement('span');
+      lbl.className = `log-lbl ${lblClass}`;
+      lbl.textContent = label;
+      const txt = document.createElement('span');
+      txt.className = 'log-text';
+      txt.textContent = text;
+      const row = document.createElement('div');
+      row.className = 'log-row';
+      row.appendChild(lbl);
+      row.appendChild(txt);
+      block.appendChild(row);
+    }
+
+    function scheduleReconnect() {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 2000);
+    }
+
+    // ── busy state ───────────────────────────────────────────────────────────
+    function markBusy(btn, label) {
+      btn.dataset.origLabel = btn.textContent;
+      btn.textContent = label;
+      btn.disabled = true;
+    }
+    function clearBusy(btn) {
+      btn.textContent = btn.dataset.origLabel || btn.textContent;
+      btn.disabled = false;
+    }
+
+    // ── ASK modal (presets + free prompt) ────────────────────────────────────
+    const PRESETS_KEY = 'susurrus_presets';
+    const DEFAULT_PRESETS = [
+      'What actions should my character take right now?',
+      'Summarize what has happened so far.',
+      'Who are the key NPCs and what do they want?',
+    ];
+    const askModal   = document.getElementById('ask-modal-overlay');
+    const askPrompt  = document.getElementById('ask-prompt');
+    const presetList = document.getElementById('preset-list');
+
+    function loadPresets() {
+      try { return JSON.parse(localStorage.getItem(PRESETS_KEY)) || DEFAULT_PRESETS.slice(); }
+      catch (_) { return DEFAULT_PRESETS.slice(); }
+    }
+    function savePresets(presets) {
+      localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+    }
+    function renderPresets() {
+      const presets = loadPresets();
+      presetList.innerHTML = '';
+      presets.forEach((text, i) => {
+        const row = document.createElement('div');
+        row.className = 'preset-row';
+        const btn = document.createElement('button');
+        btn.className = 'preset-btn';
+        btn.textContent = text;
+        btn.title = text;
+        btn.addEventListener('click', () => { askPrompt.value = text; askPrompt.focus(); });
+        const del = document.createElement('button');
+        del.className = 'preset-del';
+        del.textContent = '×';
+        del.title = 'Delete preset';
+        del.addEventListener('click', () => {
+          const updated = loadPresets();
+          updated.splice(i, 1);
+          savePresets(updated);
+          renderPresets();
+        });
+        row.appendChild(btn);
+        row.appendChild(del);
+        presetList.appendChild(row);
+      });
+    }
+
+    const LAST_PROMPT_KEY  = 'susurrus_last_prompt';
+    const selBanner       = document.getElementById('ask-selection-banner');
+    const selTextEl       = document.getElementById('ask-selection-text');
+    let modalSelection    = '';   // selection captured at modal-open time
+
+    function updateSelectionBanner() {
+      if (modalSelection && modalSelection.trim()) {
+        selTextEl.textContent = modalSelection;
+        selBanner.style.display = 'block';
+      } else {
+        selBanner.style.display = 'none';
+      }
+    }
+    document.getElementById('ask-selection-clear').addEventListener('click', () => {
+      modalSelection = '';
+      updateSelectionBanner();
+    });
+
+    // capture selection BEFORE the click steals focus — but only if it's a
+    // legitimate page selection (not from a textarea/input/modal).
+    askBtn.addEventListener('mousedown', () => {
+      const txt = getValidPageSelection();
+      if (txt) lastSelection = txt;
+    });
+
+    askBtn.addEventListener('click', () => {
+      modalSelection = lastSelection || '';
+      lastSelection = '';
+      updateSelectionBanner();
+      renderPresets();
+      askPrompt.value = localStorage.getItem(LAST_PROMPT_KEY) || '';
+      askModal.classList.add('open');
+      askPrompt.focus();
+      askPrompt.select();
+    });
+    document.getElementById('ask-cancel-btn').addEventListener('click', () => {
+      askModal.classList.remove('open');
+    });
+    document.getElementById('ask-save-preset-btn').addEventListener('click', () => {
+      const val = askPrompt.value.trim();
+      if (!val) return;
+      const presets = loadPresets();
+      if (!presets.includes(val)) {
+        presets.push(val);
+        savePresets(presets);
+        renderPresets();
+      }
+      askPrompt.value = '';
+    });
+    function submitAsk() {
+      const prompt = askPrompt.value.trim();
+      if (!prompt) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const payload = { type: 'qa_ask', prompt };
+        if (modalSelection) payload.selection = modalSelection;
+        ws.send(JSON.stringify(payload));
+        markBusy(askBtn, 'THINKING…');
+        localStorage.setItem(LAST_PROMPT_KEY, prompt);
+        showPendingAsk();
+      }
+      askPrompt.value = '';
+      modalSelection = '';
+      lastSelection = '';
+      try { window.getSelection().removeAllRanges(); } catch (_) {}
+      askModal.classList.remove('open');
+    }
+    document.getElementById('ask-submit-btn').addEventListener('click', submitAsk);
+    askPrompt.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        submitAsk();
+      }
+    });
+    askModal.addEventListener('click', e => {
+      if (e.target === askModal) askModal.classList.remove('open');
+    });
+
+    // ── Instruct modal ───────────────────────────────────────────────────────
+    const instructModal  = document.getElementById('instruct-modal-overlay');
+    const instructText   = document.getElementById('instruct-text');
+    const instructBadge  = document.getElementById('instruct-badge');
+    let activeInstruction = '';
+
+    function sendInstruction(text) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'set_instruction', text }));
+        applyInstruction(text);
+      }
+    }
+
+    document.getElementById('instruct-btn').addEventListener('click', () => {
+      instructText.value = activeInstruction;
+      instructModal.classList.add('open');
+      instructText.focus();
+    });
+    document.getElementById('instruct-cancel-btn').addEventListener('click', () => {
+      instructModal.classList.remove('open');
+    });
+    document.getElementById('instruct-clear-btn').addEventListener('click', () => {
+      sendInstruction('');
+      instructModal.classList.remove('open');
+    });
+    document.getElementById('instruct-submit-btn').addEventListener('click', () => {
+      const val = instructText.value.trim();
+      sendInstruction(val);
+      instructModal.classList.remove('open');
+    });
+    instructText.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('instruct-submit-btn').click();
+      }
+    });
+    instructModal.addEventListener('click', e => {
+      if (e.target === instructModal) instructModal.classList.remove('open');
+    });
+
+    // ── Q&A (unified ASK panel + modal + follow-ups) ─────────────────────────
+    const webThreads = new Map();   // thread_id -> { rootEl, turnsEl, pendingEl }
+    let lastSelection = '';
+    let pendingQaTopEl = null;
+
+    // Returns the current page selection IFF it's outside any editable input
+    // and outside any modal overlay. Returns '' otherwise — this prevents
+    // textarea/input selections (or selections inside a modal) from being
+    // picked up as "highlighted from the page".
+    function getValidPageSelection() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return '';
+      const txt = sel.toString().trim();
+      if (!txt) return '';
+      const anchor = sel.anchorNode;
+      if (!anchor) return '';
+      let el = anchor.nodeType === 3 ? anchor.parentElement : anchor;
+      while (el) {
+        const tag = el.tagName;
+        if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'BUTTON') return '';
+        if (el.isContentEditable) return '';
+        if (el.id && el.id.endsWith('-modal-overlay')) return '';
+        el = el.parentElement;
+      }
+      return txt;
+    }
+
+    document.addEventListener('mouseup', () => {
+      const txt = getValidPageSelection();
+      if (txt) lastSelection = txt;
+    });
+
+    function showPendingAsk() {
+      if (pendingQaTopEl) pendingQaTopEl.remove();
+      pendingQaTopEl = document.createElement('div');
+      pendingQaTopEl.className = 'web-pending standalone';
+      pendingQaTopEl.textContent = 'Thinking…';
+      webContent.appendChild(pendingQaTopEl);
+      webBody.scrollTop = webBody.scrollHeight;
+    }
+
+    function escapeHtmlAttr(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // Render an answer string as HTML: markdown via marked.js (sanitized via
+    // DOMPurify), with [N] citation markers replaced by clickable links.
+    // Returns null if marked is unavailable — caller falls back to plain text.
+    function renderAnswerHTML(text, sources) {
+      if (!text) return '';
+      if (typeof marked === 'undefined') return null;
+      // Stash citation markers behind invisible placeholders so markdown
+      // doesn't try to interpret `[N]` as a reference link.
+      const cites = [];
+      const preprocessed = text.replace(/\[(\d+)\]/g, (_, n) => {
+        cites.push(parseInt(n, 10));
+        return `⁣BBCITE${cites.length - 1}⁣`;
+      });
+      let html;
+      try {
+        html = marked.parse(preprocessed, { gfm: true, breaks: false });
+      } catch (_) {
+        return null;
+      }
+      if (typeof DOMPurify !== 'undefined') {
+        html = DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] });
+      }
+      // Open all markdown-generated links in new tab (citation markers are
+      // injected below already with target=_blank).
+      html = html.replace(/<a\s+(?![^>]*\btarget=)([^>]*?)>/gi,
+        '<a target="_blank" rel="noopener noreferrer" $1>');
+      // Restore citation placeholders as clickable markers.
+      html = html.replace(/⁣BBCITE(\d+)⁣/g, (_, i) => {
+        const idx = cites[parseInt(i, 10)];
+        const src = sources && sources[idx - 1];
+        if (!src) return `[${idx}]`;
+        return `<a href="${escapeHtmlAttr(src.url)}" target="_blank" `
+          + `rel="noopener noreferrer" class="cite-marker" `
+          + `title="${escapeHtmlAttr(src.title || src.url)}">[${idx}]</a>`;
+      });
+      return html;
+    }
+
+    // Initialize Mermaid once, with a dark teal theme matching the Q&A cards.
+    if (typeof mermaid !== 'undefined') {
+      try {
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'dark',
+          securityLevel: 'strict',
+          themeVariables: {
+            background: '#001e1a',
+            primaryColor: '#003a32',
+            primaryTextColor: '#b0d8cc',
+            primaryBorderColor: '#00b8a0',
+            secondaryColor: '#00221e',
+            tertiaryColor: '#001a18',
+            lineColor: '#005a4d',
+            mainBkg: '#003a32',
+            secondBkg: '#00221e',
+            textColor: '#b0d8cc',
+          },
+        });
+      } catch (e) { console.warn('mermaid init failed:', e); }
+    }
+
+    // Find every ```mermaid code block inside `container` and replace it with
+    // an SVG rendered by Mermaid. Async — runs in the background; errors are
+    // shown inline so the model can self-correct on follow-up.
+    let _mermaidIdCounter = 0;
+    async function renderMermaidBlocks(container) {
+      if (typeof mermaid === 'undefined') return;
+      const blocks = container.querySelectorAll('pre code.language-mermaid');
+      for (const block of blocks) {
+        const source = block.textContent;
+        const id = 'bbmermaid-' + (++_mermaidIdCounter);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'mermaid-diagram';
+        try {
+          const { svg } = await mermaid.render(id, source);
+          wrapper.innerHTML = svg;
+        } catch (e) {
+          wrapper.className = 'mermaid-error';
+          wrapper.textContent = 'Diagram error: ' + (e && e.message ? e.message : e);
+        }
+        const pre = block.parentElement;
+        if (pre && pre.parentElement) pre.parentElement.replaceChild(wrapper, pre);
+      }
+    }
+
+    // Fallback: plain text + citation markers (used when marked.js is unavailable).
+    function renderAnswerWithCitations(text, sources) {
+      const frag = document.createDocumentFragment();
+      const parts = (text || '').split(/(\[\d+\])/);
+      for (const part of parts) {
+        const m = part.match(/^\[(\d+)\]$/);
+        if (m && sources && sources[parseInt(m[1], 10) - 1]) {
+          const src = sources[parseInt(m[1], 10) - 1];
+          const a = document.createElement('a');
+          a.href = src.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.className = 'cite-marker';
+          a.title = src.title || src.url;
+          a.textContent = part;
+          frag.appendChild(a);
+        } else {
+          frag.appendChild(document.createTextNode(part));
+        }
+      }
+      return frag;
+    }
+
+    function makeWebTurnEl(turn, threadId, isFirst) {
+      const turnEl = document.createElement('div');
+      turnEl.className = 'web-turn';
+
+      const header = document.createElement('div');
+      header.className = 'web-turn-header';
+      const tsSpan = document.createElement('span');
+      tsSpan.className = 'web-turn-ts';
+      tsSpan.textContent = turn.ts || '';
+      tsSpan.style.flex = '1';
+      header.appendChild(tsSpan);
+      if (isFirst) {
+        const focusBtn = document.createElement('button');
+        focusBtn.className = 'web-turn-focus';
+        focusBtn.title = 'Open in focused view';
+        focusBtn.textContent = '⛶ Focus';
+        focusBtn.addEventListener('click', () => openFocusModal(threadId));
+        header.appendChild(focusBtn);
+        const fbtn = document.createElement('button');
+        fbtn.className = 'web-turn-followup';
+        fbtn.textContent = '↳ Follow up';
+        fbtn.addEventListener('click', () => openFollowupInput(threadId));
+        header.appendChild(fbtn);
+      }
+      turnEl.appendChild(header);
+
+      const details = document.createElement('details');
+      details.className = 'web-q';
+      const summary = document.createElement('summary');
+      const previewSpan = document.createElement('span');
+      previewSpan.className = 'web-q-preview';
+      const preview = (turn.q || '').replace(/\s+/g, ' ').slice(0, 90);
+      previewSpan.textContent = preview + ((turn.q || '').length > 90 ? '…' : '');
+      summary.appendChild(previewSpan);
+      summary.title = turn.q || '';
+      details.appendChild(summary);
+      const qFull = document.createElement('div');
+      qFull.className = 'web-q-full';
+      qFull.textContent = turn.q || '';
+      details.appendChild(qFull);
+      turnEl.appendChild(details);
+
+      const ansWrap = document.createElement('div');
+      ansWrap.className = 'web-a';
+      const ansLbl = document.createElement('span');
+      ansLbl.className = 'web-a-label';
+      ansLbl.textContent = 'ANSWER';
+      const ansText = document.createElement('div');
+      ansText.className = 'web-a-text';
+      const html = renderAnswerHTML(turn.a || '', turn.sources || []);
+      if (html !== null) {
+        ansText.innerHTML = html;
+        renderMermaidBlocks(ansText);   // async — diagrams swap in when ready
+      } else {
+        ansText.appendChild(renderAnswerWithCitations(turn.a || '', turn.sources || []));
+      }
+      ansWrap.appendChild(ansLbl);
+      ansWrap.appendChild(ansText);
+      turnEl.appendChild(ansWrap);
+
+      if (turn.sources && turn.sources.length) {
+        const src = document.createElement('div');
+        src.className = 'web-sources';
+        const srcLbl = document.createElement('span');
+        srcLbl.className = 'web-sources-label';
+        srcLbl.textContent = 'Sources';
+        src.appendChild(srcLbl);
+        turn.sources.forEach((s, i) => {
+          const a = document.createElement('a');
+          a.href = s.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          const titleShort = (s.title || s.url).slice(0, 60);
+          a.textContent = `[${i + 1}] ${titleShort}`;
+          src.appendChild(a);
+        });
+        turnEl.appendChild(src);
+      }
+
+      return turnEl;
+    }
+
+    function renderQaThread(thread) {
+      if (webThreads.has(thread.id)) return;
+      const rootEl = document.createElement('div');
+      rootEl.className = 'web-thread';
+      rootEl.dataset.threadId = thread.id;
+
+      const turnsEl = document.createElement('div');
+      turnsEl.className = 'web-turns';
+      rootEl.appendChild(turnsEl);
+
+      const turns = (thread.turns || []).slice();
+      turns.forEach((turn, i) => {
+        turnsEl.appendChild(makeWebTurnEl(turn, thread.id, i === 0));
+      });
+
+      webContent.appendChild(rootEl);
+      webThreads.set(thread.id, { rootEl, turnsEl, pendingEl: null, turns });
+    }
+
+    function handleQaThread(msg) {
+      if (msg.new && pendingQaTopEl) {
+        pendingQaTopEl.remove();
+        pendingQaTopEl = null;
+        clearBusy(askBtn);
+      }
+      const tid = msg.thread_id;
+      const turn = msg.turn;
+      if (msg.new) {
+        renderQaThread({ id: tid, ts: msg.start_ts || (turn && turn.ts) || '', turns: [turn] });
+      } else {
+        const entry = webThreads.get(tid);
+        if (!entry) {
+          renderQaThread({ id: tid, ts: turn.ts || '', turns: [turn] });
+          return;
+        }
+        if (entry.pendingEl) {
+          entry.pendingEl.remove();
+          entry.pendingEl = null;
+        }
+        entry.turnsEl.appendChild(makeWebTurnEl(turn, tid, false));
+        entry.turns.push(turn);
+      }
+      // mirror into focused modal if it's showing this thread
+      if (currentFocusThreadId === tid) {
+        if (qaFocusPendingEl) {
+          qaFocusPendingEl.remove();
+          qaFocusPendingEl = null;
+        }
+        const wrapper = qaFocusTurns.querySelector('.web-thread') || qaFocusTurns;
+        wrapper.appendChild(makeWebTurnEl(turn, tid, false));
+        qaFocusTurns.scrollTop = qaFocusTurns.scrollHeight;
+      }
+    }
+
+    function openFollowupInput(threadId) {
+      const entry = webThreads.get(threadId);
+      if (!entry) return;
+      // remove existing followup input if any
+      const existing = entry.rootEl.querySelector('.web-followup-input');
+      if (existing) { existing.remove(); return; }
+
+      const wrap = document.createElement('div');
+      wrap.className = 'web-followup-input';
+      const ta = document.createElement('textarea');
+      ta.placeholder = 'Follow-up question...';
+      wrap.appendChild(ta);
+      const actions = document.createElement('div');
+      actions.className = 'web-followup-actions';
+      const cancel = document.createElement('button');
+      cancel.className = 'web-followup-btn cancel';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => wrap.remove());
+      const send = document.createElement('button');
+      send.className = 'web-followup-btn';
+      send.textContent = 'Send';
+      function submit() {
+        const prompt = ta.value.trim();
+        if (!prompt) return;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'qa_followup', thread_id: threadId, prompt }));
+        }
+        wrap.remove();
+        const pending = document.createElement('div');
+        pending.className = 'web-pending';
+        pending.textContent = 'Thinking…';
+        entry.turnsEl.appendChild(pending);
+        entry.pendingEl = pending;
+        webBody.scrollTop = webBody.scrollHeight;
+      }
+      send.addEventListener('click', submit);
+      ta.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          submit();
+        }
+      });
+      actions.appendChild(cancel);
+      actions.appendChild(send);
+      wrap.appendChild(actions);
+      entry.rootEl.appendChild(wrap);
+      ta.focus();
+      webBody.scrollTop = webBody.scrollHeight;
+    }
+
+    // ── Q&A focused-view modal ───────────────────────────────────────────────
+    const qaFocusOverlay = document.getElementById('qa-focus-modal-overlay');
+    const qaFocusTurns   = document.getElementById('qa-focus-turns');
+    const qaFocusInput   = document.getElementById('qa-focus-followup-text');
+    let currentFocusThreadId = null;
+    let qaFocusPendingEl = null;
+
+    function openFocusModal(threadId) {
+      const entry = webThreads.get(threadId);
+      if (!entry) return;
+      currentFocusThreadId = threadId;
+      qaFocusTurns.innerHTML = '';
+      qaFocusPendingEl = null;
+      // mimic the panel structure: .web-thread wrapper carries the teal card styling
+      const wrapper = document.createElement('div');
+      wrapper.className = 'web-thread';
+      wrapper.dataset.threadId = threadId;
+      (entry.turns || []).forEach((turn, i) => {
+        wrapper.appendChild(makeWebTurnEl(turn, threadId, i === 0));
+      });
+      qaFocusTurns.appendChild(wrapper);
+      qaFocusInput.value = '';
+      qaFocusOverlay.classList.add('open');
+      qaFocusTurns.scrollTop = qaFocusTurns.scrollHeight;
+      qaFocusInput.focus();
+    }
+
+    function closeFocusModal() {
+      qaFocusOverlay.classList.remove('open');
+      currentFocusThreadId = null;
+      qaFocusTurns.innerHTML = '';
+      qaFocusPendingEl = null;
+    }
+
+    function submitFocusFollowup() {
+      const prompt = qaFocusInput.value.trim();
+      const tid = currentFocusThreadId;
+      if (!prompt || !tid) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'qa_followup', thread_id: tid, prompt }));
+      }
+      qaFocusInput.value = '';
+      // pending in modal — place inside the .web-thread wrapper so it picks up styling
+      if (qaFocusPendingEl) qaFocusPendingEl.remove();
+      qaFocusPendingEl = document.createElement('div');
+      qaFocusPendingEl.className = 'web-pending';
+      qaFocusPendingEl.textContent = 'Thinking…';
+      const wrapper = qaFocusTurns.querySelector('.web-thread') || qaFocusTurns;
+      wrapper.appendChild(qaFocusPendingEl);
+      qaFocusTurns.scrollTop = qaFocusTurns.scrollHeight;
+      // mirror pending in panel card
+      const entry = webThreads.get(tid);
+      if (entry) {
+        if (entry.pendingEl) entry.pendingEl.remove();
+        const p = document.createElement('div');
+        p.className = 'web-pending';
+        p.textContent = 'Thinking…';
+        entry.turnsEl.appendChild(p);
+        entry.pendingEl = p;
+      }
+    }
+
+    document.getElementById('qa-focus-close-btn').addEventListener('click', closeFocusModal);
+    document.getElementById('qa-focus-cancel-btn').addEventListener('click', closeFocusModal);
+    document.getElementById('qa-focus-send-btn').addEventListener('click', submitFocusFollowup);
+    qaFocusInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        submitFocusFollowup();
+      }
+    });
+    qaFocusOverlay.addEventListener('click', e => {
+      if (e.target === qaFocusOverlay) closeFocusModal();
+    });
+
+    // ── Profile prompts modal ────────────────────────────────────────────────
+    const promptsModal       = document.getElementById('prompts-modal-overlay');
+    const promptsProfileEl   = document.getElementById('prompts-modal-profile');
+    const promptsAdvisorEl   = document.getElementById('prompts-advisor-text');
+    const promptsAdvisorPath = document.getElementById('prompts-advisor-path');
+    const promptsBackstoryEl = document.getElementById('prompts-backstory-text');
+    const promptsBackstoryPath = document.getElementById('prompts-backstory-path');
+
+    function openPromptsModal() {
+      promptsAdvisorEl.textContent = '(loading…)';
+      promptsAdvisorPath.textContent = '';
+      promptsBackstoryEl.textContent = '(loading…)';
+      promptsBackstoryPath.textContent = '';
+      promptsModal.classList.add('open');
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'get_prompts' }));
+      }
+    }
+
+    let promptsBackstoryOriginal = '';
+    const promptsBackstoryStatus = document.getElementById('prompts-backstory-status');
+
+    function setBackstoryStatus(text, cls) {
+      promptsBackstoryStatus.textContent = text || '';
+      promptsBackstoryStatus.className = 'prompt-save-status' + (cls ? ' ' + cls : '');
+    }
+
+    function renderPromptsModal(msg) {
+      promptsProfileEl.textContent = msg.profile || '(unknown)';
+      // advisor section (read-only)
+      if (!msg.advisor) {
+        promptsAdvisorEl.textContent = '(no advisor configured for this profile)';
+        promptsAdvisorPath.textContent = '';
+      } else if (msg.advisor.missing) {
+        promptsAdvisorEl.textContent = '(file not found)';
+        promptsAdvisorPath.textContent = msg.advisor.path || '';
+      } else if (msg.advisor.error) {
+        promptsAdvisorEl.textContent = '(error reading file: ' + msg.advisor.error + ')';
+        promptsAdvisorPath.textContent = msg.advisor.path || '';
+      } else {
+        promptsAdvisorEl.textContent = msg.advisor.text || '(empty)';
+        promptsAdvisorPath.textContent = msg.advisor.path || '';
+      }
+      // backstory section (editable)
+      const bs = msg.backstory;
+      let initial = '';
+      if (!bs) {
+        promptsBackstoryPath.textContent = '(no backstory path for this profile)';
+      } else if (bs.missing) {
+        initial = '';
+        promptsBackstoryPath.textContent = bs.path + ' (will be created on save)';
+      } else if (bs.error) {
+        promptsBackstoryPath.textContent = bs.path + ' — error: ' + bs.error;
+      } else {
+        initial = bs.text || '';
+        promptsBackstoryPath.textContent = bs.path || '';
+      }
+      promptsBackstoryEl.value = initial;
+      promptsBackstoryOriginal = initial;
+      setBackstoryStatus('', '');
+    }
+
+    document.getElementById('prompts-backstory-text').addEventListener('input', () => {
+      if (promptsBackstoryEl.value !== promptsBackstoryOriginal) {
+        setBackstoryStatus('unsaved', 'dirty');
+      } else {
+        setBackstoryStatus('', '');
+      }
+    });
+    document.getElementById('prompts-backstory-revert').addEventListener('click', () => {
+      promptsBackstoryEl.value = promptsBackstoryOriginal;
+      setBackstoryStatus('', '');
+    });
+    document.getElementById('prompts-backstory-save').addEventListener('click', () => {
+      if (!(ws && ws.readyState === WebSocket.OPEN)) return;
+      setBackstoryStatus('saving…', 'dirty');
+      ws.send(JSON.stringify({ type: 'save_backstory', text: promptsBackstoryEl.value }));
+    });
+
+    profileNameEl.addEventListener('click', openPromptsModal);
+    document.getElementById('prompts-close-btn').addEventListener('click', () => {
+      promptsModal.classList.remove('open');
+    });
+    promptsModal.addEventListener('click', e => {
+      if (e.target === promptsModal) promptsModal.classList.remove('open');
+    });
+
+    // ── Term lookup (FORMATTED panel decoration + popover + toggle) ──────────
+    const termsToggleBtn  = document.getElementById('terms-toggle-btn');
+    const termActiveEl    = document.getElementById('term-lookup-active');
+    const termPopover     = document.getElementById('term-popover');
+    const termPopoverTerm = document.getElementById('term-popover-term');
+    const termPopoverDef  = document.getElementById('term-popover-def');
+    const termPopoverSrc  = document.getElementById('term-popover-sources');
+    const termCache       = new Map();   // lowercased term -> {term, definition, sources, ts}
+    let   termLookupEnabled = false;
+
+    function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+    function setTermsToggleVisual(on) {
+      termLookupEnabled = !!on;
+      termsToggleBtn.classList.toggle('active', termLookupEnabled);
+      termsToggleBtn.textContent = termLookupEnabled ? 'TERMS ON' : 'TERMS OFF';
+      if (termLookupEnabled && termCache.size === 0) {
+        // First time enabled this session — show a "waiting" message so it
+        // doesn't look broken until the first paragraph finalizes and scans.
+        termActiveEl.textContent = 'scanning new paragraphs…';
+        termActiveEl.classList.add('active');
+      } else if (!termLookupEnabled) {
+        setActiveLookup('');
+      }
+    }
+
+    termsToggleBtn.addEventListener('click', () => {
+      const next = !termLookupEnabled;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'set_term_lookup_enabled', enabled: next }));
+      }
+      setTermsToggleVisual(next);  // optimistic; server will confirm
+    });
+
+    function setActiveLookup(term) {
+      if (term) {
+        termActiveEl.textContent = 'Looking up: ' + term;
+        termActiveEl.classList.add('active');
+      } else {
+        termActiveEl.classList.remove('active');
+        termActiveEl.textContent = '';
+      }
+    }
+
+    // Walk text nodes inside `root` and wrap occurrences of `term` (whole word,
+    // case-insensitive) in <span class="term-decorated" data-term="...">. Skips
+    // text already inside decorated spans to avoid double-wrapping.
+    function decorateTermInRoot(root, surface, key) {
+      const re = new RegExp('\\b' + escapeRegex(surface) + '\\b', 'gi');
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => {
+          let p = node.parentElement;
+          while (p && p !== root) {
+            if (p.classList && p.classList.contains('term-decorated')) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            p = p.parentElement;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      });
+      const hits = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        const text = node.textContent;
+        let m;
+        re.lastIndex = 0;
+        while ((m = re.exec(text)) !== null) {
+          hits.push({ node, start: m.index, end: m.index + m[0].length });
+        }
+      }
+      // process in reverse so earlier indices remain valid
+      hits.reverse().forEach(h => {
+        try {
+          const range = document.createRange();
+          range.setStart(h.node, h.start);
+          range.setEnd(h.node, h.end);
+          const span = document.createElement('span');
+          span.className = 'term-decorated';
+          span.dataset.termKey = key;
+          range.surroundContents(span);
+        } catch (_) { /* range may straddle nodes — skip */ }
+      });
+    }
+
+    function decorateAllForTerm(entry) {
+      const key = (entry.term || '').toLowerCase();
+      if (!key) return;
+      const surface = entry.surface || entry.term;
+      const paras = textContent.querySelectorAll('p.finalized, p.current');
+      paras.forEach(p => decorateTermInRoot(p, surface, key));
+    }
+
+    function redecorateAllParagraphs() {
+      // strip existing decorations
+      textContent.querySelectorAll('.term-decorated').forEach(s => {
+        const parent = s.parentNode;
+        if (!parent) return;
+        while (s.firstChild) parent.insertBefore(s.firstChild, s);
+        parent.removeChild(s);
+        parent.normalize();
+      });
+      // re-apply for every cached term
+      termCache.forEach(entry => decorateAllForTerm(entry));
+    }
+
+    function showTermPopover(spanEl, entry) {
+      termPopoverTerm.textContent = entry.term || '';
+      const defText = entry.definition || '(no definition yet)';
+      const html = renderAnswerHTML(defText, entry.sources || []);
+      if (html !== null) {
+        termPopoverDef.innerHTML = html;
+      } else {
+        termPopoverDef.textContent = defText;
+      }
+      termPopoverSrc.innerHTML = '';
+      if (entry.sources && entry.sources.length) {
+        const lbl = document.createElement('span');
+        lbl.textContent = 'Sources: ';
+        lbl.style.color = '#4a8a82';
+        termPopoverSrc.appendChild(lbl);
+        entry.sources.forEach((s, i) => {
+          const a = document.createElement('a');
+          a.href = s.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.textContent = `[${i + 1}] ${(s.title || s.url).slice(0, 60)}`;
+          termPopoverSrc.appendChild(a);
+        });
+      }
+      // position near the clicked term
+      const r = spanEl.getBoundingClientRect();
+      termPopover.classList.add('open');
+      const popH = termPopover.offsetHeight;
+      const popW = termPopover.offsetWidth;
+      let top  = r.bottom + 6;
+      let left = r.left;
+      if (top + popH > window.innerHeight - 12) top = r.top - popH - 6;
+      if (left + popW > window.innerWidth  - 12) left = window.innerWidth - popW - 12;
+      if (left < 12) left = 12;
+      termPopover.style.top  = top  + 'px';
+      termPopover.style.left = left + 'px';
+    }
+
+    function hideTermPopover() { termPopover.classList.remove('open'); }
+    document.getElementById('term-popover-close').addEventListener('click', hideTermPopover);
+
+    // delegate click on the FORMATTED panel for decorated terms
+    textContent.addEventListener('click', (e) => {
+      const span = e.target.closest('.term-decorated');
+      if (span) {
+        const key = span.dataset.termKey;
+        const entry = termCache.get(key);
+        if (entry) {
+          e.stopPropagation();
+          showTermPopover(span, entry);
+        }
+      }
+    });
+    document.addEventListener('click', (e) => {
+      if (termPopover.classList.contains('open')
+          && !e.target.closest('#term-popover')
+          && !e.target.closest('.term-decorated')) {
+        hideTermPopover();
+      }
+    });
+
+    // ── CLEAR session ────────────────────────────────────────────────────────
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      if (!confirm('Clear all session data? This cannot be undone.')) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'clear_session' }));
+      }
+    });
+
+    // ── Per-panel clears ─────────────────────────────────────────────────────
+    document.getElementById('nudge-btn').addEventListener('click', (e) => {
+      const btn = e.currentTarget;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'trigger_advisor' }));
+      btn.disabled = true;
+      const prev = btn.textContent;
+      btn.textContent = 'NUDGED';
+      setTimeout(() => { btn.disabled = false; btn.textContent = prev; }, 2500);
+    });
+    document.getElementById('clear-live-notes-btn').addEventListener('click', () => {
+      if (!confirm('Clear all LIVE NOTES content? (Transcript and Q&A are kept.)')) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'clear_live_notes' }));
+      }
+    });
+    document.getElementById('clear-qa-btn').addEventListener('click', () => {
+      if (!confirm('Clear all Q&A threads? (Transcript and LIVE NOTES are kept.)')) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'clear_qa' }));
+      }
+    });
+
+    connect();
+  </script>
+</body>
+</html>
