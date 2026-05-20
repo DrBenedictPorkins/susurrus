@@ -2,6 +2,8 @@
 name = "susurrus"
 version = "0.1.0"
 description = "Real-time audio transcription + LLM co-pilot for live calls"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "faster-whisper>=1.1.0",
