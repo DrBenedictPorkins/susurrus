@@ -6,8 +6,10 @@ Real-time audio transcription + LLM analysis pipeline for live calls (Zoom, meet
 
 ## Hardware
 
-- **Dev (local):** MacBook M3 Max — CPU only, no CUDA
-- **Prod:** Ubuntu server `beefybox` — RTX 4090 24GB, 251GB RAM, runs faster-whisper + Ollama
+Designed to split across two machines (both can be the same box):
+
+- **Capture side:** a laptop/desktop running audio capture (Audio Hijack or `capture.sh`). Whisper can run here on CPU/MPS with a smaller model.
+- **Compute side:** a machine with an NVIDIA GPU for faster-whisper, plus a running Ollama instance.
 
 ## Public vs local layout
 
